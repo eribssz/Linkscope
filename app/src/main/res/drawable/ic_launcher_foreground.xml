@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- gauge track -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M34.95,63 A22,22 0 1,1 73.05,63"
+        android:strokeColor="#FF2A2F3A"
+        android:strokeLineCap="round"
+        android:strokeWidth="5" />
+
+    <!-- gauge value -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M34.95,63 A22,22 0 0,1 65,32.95"
+        android:strokeColor="#FF5EF0BC"
+        android:strokeLineCap="round"
+        android:strokeWidth="5" />
+
+    <!-- USB-C receptacle -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M45,68 h18 a5,5 0 0 1 0,10 h-18 a5,5 0 0 1 0,-10 z"
+        android:strokeColor="#FFECEEF3"
+        android:strokeWidth="2" />
+    <path
+        android:fillColor="#FF5EF0BC"
+        android:pathData="M47.5,71.8 h13 a1.2,1.2 0 0 1 0,2.4 h-13 a1.2,1.2 0 0 1 0,-2.4 z" />
+</vector>
