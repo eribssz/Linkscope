@@ -194,13 +194,15 @@ fun LinkscopeApp(
     val selected = devices.firstOrNull { it.key == selectedKey }
     if (selected != null) lastSelected.value = selected
 
-    BackHandler(enabled = screen != null) { screen = null }
+    BackHandler(enabled = screen != null) {
+        screen = if (screen?.startsWith("hist:") == true) "history" else null
+    }
 
     Box(Modifier.fillMaxSize().background(Ink.Bg)) {
         AnimatedContent(
             targetState = screen,
             transitionSpec = {
-                if (targetState != null) {
+                if (depth(targetState) > depth(initialState)) {
                     (slideInHorizontally { it / 3 } + fadeIn()) togetherWith (slideOutHorizontally { -it / 8 } + fadeOut())
                 } else {
                     (slideInHorizontally { -it / 8 } + fadeIn()) togetherWith (slideOutHorizontally { it / 3 } + fadeOut())
@@ -212,21 +214,26 @@ fun LinkscopeApp(
                 HomeScreen(
                     devices = devices,
                     deep = deep,
-                    history = history,
+                    historyCount = history.size,
                     onOpen = { screen = "dev:${it.key}" },
-                    onOpenHistory = { screen = "hist:${it.id}" },
-                    onClearHistory = { persist(emptyList()) },
+                    onOpenHistory = { screen = "history" },
                 )
             }
             when {
                 target == null -> home()
+                target == "history" -> HistoryScreen(
+                    history = history,
+                    onBack = { screen = null },
+                    onOpen = { screen = "hist:${it.id}" },
+                    onClear = { persist(emptyList()) },
+                )
                 target.startsWith("hist:") -> {
                     val e = history.firstOrNull { it.id.toString() == target.removePrefix("hist:") }
                     if (e == null) home() else HistoryDetailScreen(
                         e = e,
-                        onBack = { screen = null },
+                        onBack = { screen = "history" },
                         onDelete = {
-                            screen = null
+                            screen = "history"
                             persist(history.filter { it.id != e.id })
                         },
                     )
@@ -251,4 +258,10 @@ fun LinkscopeApp(
 
 private class LastSeen {
     var value: DeviceSnapshot? = null
+}
+
+private fun depth(screen: String?): Int = when {
+    screen == null -> 0
+    screen.startsWith("hist:") -> 2
+    else -> 1
 }

@@ -50,10 +50,9 @@ import java.util.Locale
 fun HomeScreen(
     devices: List<DeviceSnapshot>,
     deep: Map<String, DeepInfo>,
-    history: List<HistoryEntry>,
+    historyCount: Int,
     onOpen: (DeviceSnapshot) -> Unit,
-    onOpenHistory: (HistoryEntry) -> Unit,
-    onClearHistory: () -> Unit,
+    onOpenHistory: () -> Unit,
 ) {
     Column(
         Modifier
@@ -61,13 +60,23 @@ fun HomeScreen(
             .background(Ink.Bg)
             .windowInsetsPadding(WindowInsets.safeDrawing),
     ) {
-        Column(Modifier.padding(start = 22.dp, end = 22.dp, top = 20.dp, bottom = 8.dp)) {
+        Column(Modifier.padding(start = 22.dp, end = 10.dp, top = 20.dp, bottom = 8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 PulseDot(if (devices.isEmpty()) Ink.Faint else Ink.Mint)
                 Spacer(Modifier.width(10.dp))
-                Eyebrow("Linkscope · watching ports")
+                Eyebrow("Linkscope · watching ports", modifier = Modifier.weight(1f))
+                if (historyCount > 0) {
+                    // Same eyebrow style as the label on the left, as a quiet link.
+                    Eyebrow(
+                        "History · $historyCount  ›",
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable(onClick = onOpenHistory)
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                    )
+                }
             }
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(2.dp))
             Row(verticalAlignment = Alignment.Bottom) {
                 Text(
                     "Connected",
@@ -87,54 +96,27 @@ fun HomeScreen(
             }
         }
 
-        if (devices.isEmpty() && history.isEmpty()) {
+        if (devices.isEmpty()) {
             EmptyState(Modifier.weight(1f).fillMaxWidth())
         } else {
             LazyColumn(
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 28.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                if (devices.isEmpty()) {
-                    item(key = "waiting") { WaitingCard(Modifier.animateItem()) }
-                } else {
-                    items(devices, key = { it.key }) { d ->
-                        DeviceCard(d, deep[d.key], Modifier.animateItem()) { onOpen(d) }
-                    }
+                items(devices, key = { it.key }) { d ->
+                    DeviceCard(d, deep[d.key], Modifier.animateItem()) { onOpen(d) }
                 }
-                if (history.isNotEmpty()) {
-                    item(key = "history-head") {
-                        Row(
-                            Modifier.fillMaxWidth().padding(start = 6.dp, top = 18.dp).animateItem(),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Eyebrow("History · ${history.size}", modifier = Modifier.weight(1f))
-                            ConfirmPill("Clear all", "Tap to clear", Ink.Dim, onClearHistory)
-                        }
-                    }
-                    items(history, key = { "h-${it.id}" }) { e ->
-                        HistoryRow(e, Modifier.animateItem()) { onOpenHistory(e) }
-                    }
+                item(key = "hint") {
+                    Text(
+                        "Tap a device for the full link analysis.",
+                        color = Ink.Faint,
+                        fontSize = 12.sp,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    )
                 }
             }
         }
-    }
-}
-
-/** Compact stand-in for the big empty state when there's history below. */
-@Composable
-private fun WaitingCard(modifier: Modifier = Modifier) {
-    val shape = RoundedCornerShape(22.dp)
-    Row(
-        modifier
-            .fillMaxWidth()
-            .clip(shape)
-            .border(1.dp, Ink.Line, shape)
-            .padding(18.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        PulseDot(Ink.Faint)
-        Spacer(Modifier.width(12.dp))
-        Text("Plug something in to test it", color = Ink.Dim, fontSize = 14.sp)
     }
 }
 

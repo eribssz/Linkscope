@@ -12,8 +12,8 @@ android {
         applicationId = "dev.linkscope"
         minSdk = 26
         targetSdk = 35
-        versionCode = 4
-        versionName = "1.3"
+        versionCode = 5
+        versionName = "1.4"
     }
 
     // A fixed key so future builds install as updates instead of conflicting.

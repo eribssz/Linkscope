@@ -248,3 +248,81 @@ fun HistoryDetailScreen(e: HistoryEntry, onBack: () -> Unit, onDelete: () -> Uni
         }
     }
 }
+
+@Composable
+fun HistoryScreen(
+    history: List<HistoryEntry>,
+    onBack: () -> Unit,
+    onOpen: (HistoryEntry) -> Unit,
+    onClear: () -> Unit,
+) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .background(Ink.Bg)
+            .windowInsetsPadding(WindowInsets.safeDrawing),
+    ) {
+        Row(
+            Modifier.padding(start = 16.dp, end = 16.dp, top = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            BackButton(onBack)
+            Spacer(Modifier.weight(1f))
+            if (history.isNotEmpty()) ConfirmPill("Clear all", "Tap to clear", Ink.Dim, onClear)
+        }
+        Column(Modifier.padding(start = 22.dp, end = 22.dp, top = 18.dp, bottom = 8.dp)) {
+            Eyebrow("Linkscope · past results")
+            Spacer(Modifier.height(12.dp))
+            Row(verticalAlignment = Alignment.Bottom) {
+                Text("History", color = Ink.Text, fontSize = 34.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.8).sp)
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    String.format(java.util.Locale.US, "%02d", history.size),
+                    color = if (history.isEmpty()) Ink.Faint else Ink.Mint,
+                    fontFamily = Mono,
+                    fontSize = 18.sp,
+                    modifier = Modifier.padding(bottom = 7.dp),
+                )
+            }
+        }
+        if (history.isEmpty()) {
+            Text(
+                "Nothing yet. Every device you plug in is recorded here.",
+                color = Ink.Dim,
+                fontSize = 14.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().padding(32.dp),
+            )
+        } else {
+            LazyColumn(
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 28.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                items(history.size, key = { history[it].id }) { i ->
+                    HistoryRow(history[i], Modifier.animateItem()) { onOpen(history[i]) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun BackButton(onClick: () -> Unit) {
+    Box(
+        Modifier
+            .size(42.dp)
+            .clip(CircleShape)
+            .background(Ink.Surface)
+            .border(1.dp, Ink.Line, CircleShape)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Canvas(Modifier.size(16.dp)) {
+            val w = size.width
+            val h = size.height
+            val sw = 2.dp.toPx()
+            drawLine(Ink.Text, Offset(w * 0.62f, h * 0.18f), Offset(w * 0.28f, h * 0.5f), sw, StrokeCap.Round)
+            drawLine(Ink.Text, Offset(w * 0.28f, h * 0.5f), Offset(w * 0.62f, h * 0.82f), sw, StrokeCap.Round)
+        }
+    }
+}
