@@ -7,6 +7,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -21,8 +24,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
@@ -116,134 +121,174 @@ fun DetailBody(
     extra: (@Composable () -> Unit)? = null,
 ) {
     val m = model
-    val clipboard = LocalClipboardManager.current
-    var copied by remember { mutableStateOf(false) }
-    LaunchedEffect(copied) { if (copied) { delay(1600); copied = false } }
-
-    LazyColumn(
+    BoxWithConstraints(
         Modifier
             .fillMaxSize()
             .background(Ink.Bg)
             .windowInsetsPadding(WindowInsets.safeDrawing),
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 36.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        // top bar
-        item(key = "bar") {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                RoundButton(onBack) {
-                    Canvas(Modifier.size(16.dp)) {
-                        val w = size.width
-                        val h = size.height
-                        val sw = 2.dp.toPx()
-                        drawLine(Ink.Text, Offset(w * 0.62f, h * 0.18f), Offset(w * 0.28f, h * 0.5f), sw, StrokeCap.Round)
-                        drawLine(Ink.Text, Offset(w * 0.28f, h * 0.5f), Offset(w * 0.62f, h * 0.82f), sw, StrokeCap.Round)
+        // Landscape on a wide screen: identity + dial on the left, details on the right.
+        val wide = maxWidth >= 840.dp && maxWidth > maxHeight
+        if (wide) {
+            val leftWidth = (maxWidth * 0.4f).coerceIn(400.dp, 520.dp)
+            Column(Modifier.fillMaxSize().padding(start = 32.dp, end = 32.dp, top = 16.dp)) {
+                TopBar(m, onBack, actions)
+                Spacer(Modifier.height(8.dp))
+                Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+                    Column(
+                        Modifier
+                            .width(leftWidth)
+                            .fillMaxHeight()
+                            .verticalScroll(rememberScrollState())
+                            .padding(bottom = 24.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        Hero(m)
+                        GaugePanel(m, maxDial = 400.dp)
+                    }
+                    LazyColumn(
+                        Modifier.weight(1f).fillMaxHeight(),
+                        contentPadding = PaddingValues(top = 4.dp, bottom = 36.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        detailItems(m, extra)
                     }
                 }
-                Spacer(Modifier.weight(1f))
-                actions()
-                PillButton(if (copied) "Copied ✓" else "Copy report", if (copied) Ink.Mint else Ink.Dim) {
-                    clipboard.setText(AnnotatedString(m.report))
-                    copied = true
-                }
+            }
+        } else {
+            LazyColumn(
+                Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 36.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                item(key = "bar") { TopBar(m, onBack, actions) }
+                item(key = "hero") { Hero(m) }
+                item(key = "gauge") { GaugePanel(m) }
+                detailItems(m, extra)
             }
         }
+    }
+}
 
-        // hero
-        item(key = "hero") {
-            Column(Modifier.padding(horizontal = 4.dp, vertical = 8.dp)) {
+@Composable
+private fun TopBar(m: DetailModel, onBack: () -> Unit, actions: @Composable () -> Unit) {
+    val clipboard = LocalClipboardManager.current
+    var copied by remember { mutableStateOf(false) }
+    LaunchedEffect(copied) { if (copied) { delay(1600); copied = false } }
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        RoundButton(onBack) {
+            Canvas(Modifier.size(16.dp)) {
+                val w = size.width
+                val h = size.height
+                val sw = 2.dp.toPx()
+                drawLine(Ink.Text, Offset(w * 0.62f, h * 0.18f), Offset(w * 0.28f, h * 0.5f), sw, StrokeCap.Round)
+                drawLine(Ink.Text, Offset(w * 0.28f, h * 0.5f), Offset(w * 0.62f, h * 0.82f), sw, StrokeCap.Round)
+            }
+        }
+        Spacer(Modifier.weight(1f))
+        actions()
+        PillButton(if (copied) "Copied ✓" else "Copy report", if (copied) Ink.Mint else Ink.Dim) {
+            clipboard.setText(AnnotatedString(m.report))
+            copied = true
+        }
+    }
+}
+
+@Composable
+private fun Hero(m: DetailModel) {
+    Column(Modifier.padding(horizontal = 4.dp, vertical = 8.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            KindBadge(m.kind, large = true)
+            Spacer(Modifier.width(14.dp))
+            Column {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    KindBadge(m.kind, large = true)
-                    Spacer(Modifier.width(14.dp))
-                    Column {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Eyebrow(m.kind.label)
-                            m.statusTag?.let { (text, tone) ->
-                                Spacer(Modifier.width(8.dp))
-                                Tag(text, tone)
-                            }
-                        }
-                        Spacer(Modifier.height(2.dp))
-                        Text(m.manufacturer ?: "Unknown maker", color = Ink.Dim, fontSize = 14.sp)
+                    Eyebrow(m.kind.label)
+                    m.statusTag?.let { (text, tone) ->
+                        Spacer(Modifier.width(8.dp))
+                        Tag(text, tone)
                     }
                 }
-                Spacer(Modifier.height(14.dp))
-                Text(
-                    m.product,
-                    color = Ink.Text,
-                    fontSize = 30.sp,
-                    lineHeight = 34.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    letterSpacing = (-0.6).sp,
-                )
-                Spacer(Modifier.height(10.dp))
-                Row(
-                    Modifier.horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    m.tags.forEach { (text, tone) -> Tag(text, tone) }
+                Spacer(Modifier.height(2.dp))
+                Text(m.manufacturer ?: "Unknown maker", color = Ink.Dim, fontSize = 14.sp)
+            }
+        }
+        Spacer(Modifier.height(14.dp))
+        Text(
+            m.product,
+            color = Ink.Text,
+            fontSize = 30.sp,
+            lineHeight = 34.sp,
+            fontWeight = FontWeight.SemiBold,
+            letterSpacing = (-0.6).sp,
+        )
+        Spacer(Modifier.height(10.dp))
+        Row(
+            Modifier.horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            m.tags.forEach { (text, tone) -> Tag(text, tone) }
+        }
+    }
+}
+
+@Composable
+private fun GaugePanel(m: DetailModel, maxDial: androidx.compose.ui.unit.Dp = androidx.compose.ui.unit.Dp.Unspecified) {
+    Panel {
+        Eyebrow(m.gaugeLabel)
+        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            SpeedGauge(m.link, m.capability, m.verdict.tone, Modifier.widthIn(max = maxDial))
+        }
+        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            GaugeLegend(m.verdict.tone, m.capability, isRange(m.link, m.capability))
+        }
+    }
+}
+
+/** Everything below the dial: verdicts, facts, interfaces. */
+private fun LazyListScope.detailItems(m: DetailModel, extra: (@Composable () -> Unit)?) {
+    item(key = "link-verdict") {
+        VerdictCard("Cable & port", m.verdict, m.link?.source?.text)
+    }
+    if (m.storage != null) {
+        item(key = "storage") {
+            VerdictCard("Protocol", m.storage, null) {
+                val ladder = m.interfaces.filter { it.cls == 0x08 }
+                if (ladder.isNotEmpty()) {
+                    Spacer(Modifier.height(14.dp))
+                    ProtocolLadder(ladder)
                 }
             }
         }
+    }
 
-        // gauge
-        item(key = "gauge") {
-            Panel {
-                Eyebrow(m.gaugeLabel)
-                SpeedGauge(m.link, m.capability, m.verdict.tone)
-                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    GaugeLegend(m.verdict.tone, m.capability, isRange(m.link, m.capability))
-                }
-            }
-        }
+    if (extra != null) item(key = "extra") { extra() }
 
-        // verdicts
-        item(key = "link-verdict") {
-            VerdictCard("Cable & port", m.verdict, m.link?.source?.text)
+    item(key = "facts") {
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Fact("Power ask", m.power ?: "—", Modifier.weight(1f))
+            Fact("Spec", m.spec?.let { "USB $it" } ?: "—", Modifier.weight(1f))
         }
-        if (m.storage != null) {
-            item(key = "storage") {
-                VerdictCard("Protocol", m.storage, null) {
-                    val ladder = m.interfaces.filter { it.cls == 0x08 }
-                    if (ladder.isNotEmpty()) {
-                        Spacer(Modifier.height(14.dp))
-                        ProtocolLadder(ladder)
-                    }
-                }
-            }
-        }
+    }
+    m.serial?.let { serial ->
+        item(key = "serial") { Fact("Serial", serial, Modifier.fillMaxWidth()) }
+    }
 
-        if (extra != null) item(key = "extra") { extra() }
+    if (m.interfaces.isNotEmpty()) {
+        item(key = "iface-head") {
+            Eyebrow("Interfaces · ${m.interfaces.size}", modifier = Modifier.padding(start = 6.dp, top = 14.dp, bottom = 2.dp))
+        }
+        items(m.interfaces) { InterfaceCard(it) }
+    }
 
-        // facts
-        item(key = "facts") {
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Fact("Power ask", m.power ?: "—", Modifier.weight(1f))
-                Fact("Spec", m.spec?.let { "USB $it" } ?: "—", Modifier.weight(1f))
-            }
-        }
-        m.serial?.let { serial ->
-            item(key = "serial") { Fact("Serial", serial, Modifier.fillMaxWidth()) }
-        }
-
-        // descriptor tree
-        if (m.interfaces.isNotEmpty()) {
-            item(key = "iface-head") {
-                Eyebrow("Interfaces · ${m.interfaces.size}", modifier = Modifier.padding(start = 6.dp, top = 14.dp, bottom = 2.dp))
-            }
-            items(m.interfaces) { InterfaceCard(it) }
-        }
-
-        item(key = "foot") {
-            Text(
-                m.footer,
-                color = Ink.Faint,
-                fontFamily = Mono,
-                fontSize = 11.sp,
-                modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-            )
-        }
+    item(key = "foot") {
+        Text(
+            m.footer,
+            color = Ink.Faint,
+            fontFamily = Mono,
+            fontSize = 11.sp,
+            modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+        )
     }
 }
 
