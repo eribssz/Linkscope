@@ -123,130 +123,49 @@ fun HistoryRow(e: HistoryEntry, modifier: Modifier = Modifier, onClick: () -> Un
 
 @Composable
 fun HistoryDetailScreen(e: HistoryEntry, onBack: () -> Unit, onDelete: () -> Unit) {
-    val clipboard = LocalClipboardManager.current
-    var copied by remember { mutableStateOf(false) }
-    LaunchedEffect(copied) { if (copied) { delay(1600); copied = false } }
-
-    LazyColumn(
-        Modifier
-            .fillMaxSize()
-            .background(Ink.Bg)
-            .windowInsetsPadding(WindowInsets.safeDrawing),
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 36.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        item {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    Modifier
-                        .size(42.dp)
-                        .clip(CircleShape)
-                        .background(Ink.Surface)
-                        .border(1.dp, Ink.Line, CircleShape)
-                        .clickable(onClick = onBack),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Canvas(Modifier.size(16.dp)) {
-                        val w = size.width
-                        val h = size.height
-                        val sw = 2.dp.toPx()
-                        drawLine(Ink.Text, Offset(w * 0.62f, h * 0.18f), Offset(w * 0.28f, h * 0.5f), sw, StrokeCap.Round)
-                        drawLine(Ink.Text, Offset(w * 0.28f, h * 0.5f), Offset(w * 0.62f, h * 0.82f), sw, StrokeCap.Round)
-                    }
-                }
-                Spacer(Modifier.weight(1f))
-                ConfirmPill("Delete", "Tap to delete", Ink.Dim, onDelete)
-                Spacer(Modifier.width(8.dp))
-                val shape = RoundedCornerShape(50)
-                Text(
-                    if (copied) "Copied ✓" else "Copy report",
-                    color = if (copied) Ink.Mint else Ink.Dim,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier
-                        .clip(shape)
-                        .background(Ink.Surface)
-                        .border(1.dp, Ink.Line, shape)
-                        .clickable {
-                            clipboard.setText(AnnotatedString(e.report))
-                            copied = true
-                        }
-                        .padding(horizontal = 14.dp, vertical = 8.dp),
-                )
-            }
+    val verdict = Verdict(e.tone, e.headline, e.body)
+    // Older entries only kept the headline; rebuild the full protocol card from it.
+    val storage = e.storageHeadline?.let { h ->
+        val body = when (h) {
+            "UASP supported" -> "USB Attached SCSI: commands are queued and run in parallel, so the drive is faster with less CPU load. " +
+                "Android uses it when the phone's kernel includes the UAS driver."
+            "BOT only" -> "Legacy Bulk-Only Transport handles one command at a time. Fine for big copies, slower with many small files. " +
+                "This comes from the drive's bridge chip, not the cable."
+            else -> "Uses a less common storage protocol."
         }
-
-        item {
-            Column(Modifier.padding(horizontal = 4.dp, vertical = 8.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    KindBadge(e.kind, large = true)
-                    Spacer(Modifier.width(14.dp))
-                    Column {
-                        Eyebrow("History · ${e.kind.label}")
-                        Spacer(Modifier.height(2.dp))
-                        Text(e.manufacturer ?: "Unknown maker", color = Ink.Dim, fontSize = 14.sp)
-                    }
-                }
-                Spacer(Modifier.height(14.dp))
-                Text(e.product, color = Ink.Text, fontSize = 30.sp, lineHeight = 34.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.6).sp)
-                Spacer(Modifier.height(10.dp))
-                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Tag(e.ids)
-                    e.spec?.let { Tag("spec USB $it", Tone.INFO) }
-                    if (e.count > 1) Tag("seen ×${e.count}")
-                }
-            }
-        }
-
-        item {
-            Panel {
-                Eyebrow("Link · ${whenText(e.lastSeen)}")
-                SpeedGauge(e.linkReading, e.capability, e.tone)
-                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    GaugeLegend(e.tone, e.capability)
-                }
-            }
-        }
-
-        item {
-            Panel {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(8.dp).clip(CircleShape).background(e.tone.color))
-                    Spacer(Modifier.width(10.dp))
-                    Eyebrow("Cable & port")
-                }
-                Spacer(Modifier.height(10.dp))
-                Text(e.headline, color = e.tone.color, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.height(6.dp))
-                Text(e.body, color = Ink.Dim, fontSize = 14.sp, lineHeight = 20.sp)
-                if (e.storageHeadline != null) {
-                    Spacer(Modifier.height(14.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Eyebrow("Protocol  ")
-                        Text(e.storageHeadline, color = (e.storageTone ?: Tone.INFO).color, fontSize = 15.sp, fontWeight = FontWeight.Medium)
-                    }
-                }
-            }
-        }
-
-        item {
-            Panel {
-                Eyebrow("Report")
-                Spacer(Modifier.height(10.dp))
-                Text(e.report, color = Ink.Dim, fontFamily = Mono, fontSize = 11.sp, lineHeight = 16.sp)
-            }
-        }
-
-        item {
-            Text(
-                if (e.count > 1) "First seen ${whenText(e.firstSeen)}" else "",
-                color = Ink.Faint,
-                fontSize = 12.sp,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
+        Verdict(e.storageTone ?: Tone.INFO, h, body)
     }
+    val model = DetailModel(
+        kind = e.kind,
+        product = e.product,
+        manufacturer = e.manufacturer,
+        tags = listOfNotNull(
+            e.ids to Tone.MUTED,
+            e.busLabel?.let { it to Tone.MUTED },
+            e.spec?.let { "spec USB $it" to Tone.INFO },
+            if (e.count > 1) "seen ×${e.count}" to Tone.MUTED else null,
+        ),
+        statusTag = "history" to Tone.INFO,
+        gaugeLabel = "Link · ${whenText(e.lastSeen)}",
+        link = e.linkReading,
+        capability = e.capability,
+        verdict = verdict,
+        storage = storage,
+        interfaces = e.interfaces,
+        power = e.power,
+        spec = e.spec,
+        serial = e.serial,
+        footer = if (e.count > 1) "First seen ${whenText(e.firstSeen)}" else (e.path ?: ""),
+        report = e.report,
+    )
+    DetailBody(
+        model = model,
+        onBack = onBack,
+        actions = {
+            ConfirmPill("Delete", "Tap to delete", Ink.Dim, onDelete)
+            Spacer(Modifier.width(8.dp))
+        },
+    )
 }
 
 @Composable

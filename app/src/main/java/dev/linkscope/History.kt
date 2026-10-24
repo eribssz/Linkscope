@@ -33,6 +33,9 @@ data class HistoryEntry(
     val storageHeadline: String?,
     val power: String?,
     val report: String,
+    val interfaces: List<InterfaceInfo> = emptyList(),
+    val busLabel: String? = null,
+    val path: String? = null,
 ) {
     val linkReading: SpeedReading?
         get() = link?.let { SpeedReading(it, linkSource ?: SpeedSource.ENDPOINTS, linkAtLeast) }
@@ -46,12 +49,50 @@ data class HistoryEntry(
         put("headline", headline); put("body", body)
         putOpt("storageTone", storageTone?.name); putOpt("storageHeadline", storageHeadline)
         putOpt("power", power); put("report", report)
+        putOpt("busLabel", busLabel); putOpt("path", path)
+        put("interfaces", JSONArray().apply {
+            interfaces.forEach { i ->
+                put(JSONObject().apply {
+                    put("id", i.id); put("alt", i.alt); put("cls", i.cls); put("sub", i.sub); put("proto", i.proto)
+                    putOpt("name", i.name)
+                    put("eps", JSONArray().apply {
+                        i.endpoints.forEach { e ->
+                            put(JSONObject().apply {
+                                put("a", e.address); put("in", e.isIn); put("t", e.type); put("mp", e.maxPacket); put("iv", e.interval)
+                            })
+                        }
+                    })
+                })
+            }
+        })
     }
 
     companion object {
         private fun JSONObject.str(k: String): String? = if (isNull(k)) null else optString(k).ifEmpty { null }
         private inline fun <reified E : Enum<E>> JSONObject.enum(k: String): E? =
             str(k)?.let { n -> enumValues<E>().firstOrNull { it.name == n } }
+
+        private fun parseInterfaces(arr: JSONArray?): List<InterfaceInfo> {
+            if (arr == null) return emptyList()
+            return (0 until arr.length()).mapNotNull { k ->
+                runCatching {
+                    val i = arr.getJSONObject(k)
+                    val eps = i.optJSONArray("eps") ?: JSONArray()
+                    InterfaceInfo(
+                        id = i.getInt("id"),
+                        alt = i.optInt("alt"),
+                        cls = i.getInt("cls"),
+                        sub = i.optInt("sub"),
+                        proto = i.optInt("proto"),
+                        name = i.str("name"),
+                        endpoints = (0 until eps.length()).map { n ->
+                            val e = eps.getJSONObject(n)
+                            EndpointInfo(e.getInt("a"), e.getBoolean("in"), e.getInt("t"), e.getInt("mp"), e.optInt("iv"))
+                        },
+                    )
+                }.getOrNull()
+            }
+        }
 
         fun fromJson(o: JSONObject): HistoryEntry? = runCatching {
             HistoryEntry(
@@ -77,6 +118,9 @@ data class HistoryEntry(
                 storageHeadline = o.str("storageHeadline"),
                 power = o.str("power"),
                 report = o.optString("report"),
+                interfaces = parseInterfaces(o.optJSONArray("interfaces")),
+                busLabel = o.str("busLabel"),
+                path = o.str("path"),
             )
         }.getOrNull()
     }
@@ -135,5 +179,8 @@ fun entryFor(device: DeviceSnapshot, deep: DeepInfo?, id: Long, firstSeen: Long,
         storageHeadline = storage?.headline,
         power = powerText(s, deep),
         report = buildReport(device, deep),
+        interfaces = s.interfaces,
+        busLabel = s.busLabel,
+        path = s.key,
     )
 }

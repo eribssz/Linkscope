@@ -47,6 +47,26 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import java.util.Locale
 
+/** Everything the detail screen shows, from a live device or a saved entry. */
+data class DetailModel(
+    val kind: DeviceKind,
+    val product: String,
+    val manufacturer: String?,
+    val tags: List<Pair<String, Tone>>,
+    val statusTag: Pair<String, Tone>?,
+    val gaugeLabel: String,
+    val link: SpeedReading?,
+    val capability: LinkSpeed?,
+    val verdict: Verdict,
+    val storage: Verdict?,
+    val interfaces: List<InterfaceInfo>,
+    val power: String?,
+    val spec: String?,
+    val serial: String?,
+    val footer: String,
+    val report: String,
+)
+
 @Composable
 fun DetailScreen(
     device: DeviceSnapshot,
@@ -59,8 +79,43 @@ fun DetailScreen(
     val d = device.withDeep(deep)
     val link = effectiveLink(d, deep)
     val cap = capabilityOf(d, deep, link)
-    val verdict = linkVerdict(d, deep, link, cap)
-    val storage = storageVerdict(d)
+    val model = DetailModel(
+        kind = d.kind,
+        product = d.product,
+        manufacturer = d.manufacturer,
+        tags = listOfNotNull(d.ids to Tone.MUTED, d.busLabel to Tone.MUTED, d.spec?.let { "spec USB $it" to Tone.INFO }),
+        statusTag = if (connected) null else "unplugged" to Tone.BAD,
+        gaugeLabel = "Link",
+        link = link,
+        capability = cap,
+        verdict = linkVerdict(d, deep, link, cap),
+        storage = storageVerdict(d),
+        interfaces = d.interfaces,
+        power = powerText(d, deep),
+        spec = d.spec,
+        serial = deep?.serial,
+        footer = d.key,
+        report = buildReport(device, deep),
+    )
+    DetailBody(
+        model = model,
+        onBack = onBack,
+        extra = if (!d.hasPermission || scanning || deep?.error != null) {
+            { DeepScanCard(d.hasPermission, scanning, deep?.error, onDeepScan) }
+        } else {
+            null
+        },
+    )
+}
+
+@Composable
+fun DetailBody(
+    model: DetailModel,
+    onBack: () -> Unit,
+    actions: @Composable () -> Unit = {},
+    extra: (@Composable () -> Unit)? = null,
+) {
+    val m = model
     val clipboard = LocalClipboardManager.current
     var copied by remember { mutableStateOf(false) }
     LaunchedEffect(copied) { if (copied) { delay(1600); copied = false } }
@@ -86,8 +141,9 @@ fun DetailScreen(
                     }
                 }
                 Spacer(Modifier.weight(1f))
+                actions()
                 PillButton(if (copied) "Copied ✓" else "Copy report", if (copied) Ink.Mint else Ink.Dim) {
-                    clipboard.setText(AnnotatedString(buildReport(device, deep)))
+                    clipboard.setText(AnnotatedString(m.report))
                     copied = true
                 }
             }
@@ -97,23 +153,23 @@ fun DetailScreen(
         item(key = "hero") {
             Column(Modifier.padding(horizontal = 4.dp, vertical = 8.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    KindBadge(d.kind, large = true)
+                    KindBadge(m.kind, large = true)
                     Spacer(Modifier.width(14.dp))
                     Column {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Eyebrow(d.kind.label)
-                            if (!connected) {
+                            Eyebrow(m.kind.label)
+                            m.statusTag?.let { (text, tone) ->
                                 Spacer(Modifier.width(8.dp))
-                                Tag("unplugged", Tone.BAD)
+                                Tag(text, tone)
                             }
                         }
                         Spacer(Modifier.height(2.dp))
-                        Text(d.manufacturer ?: "Unknown maker", color = Ink.Dim, fontSize = 14.sp)
+                        Text(m.manufacturer ?: "Unknown maker", color = Ink.Dim, fontSize = 14.sp)
                     }
                 }
                 Spacer(Modifier.height(14.dp))
                 Text(
-                    d.product,
+                    m.product,
                     color = Ink.Text,
                     fontSize = 30.sp,
                     lineHeight = 34.sp,
@@ -125,9 +181,7 @@ fun DetailScreen(
                     Modifier.horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    Tag(d.ids)
-                    Tag(d.busLabel)
-                    d.spec?.let { Tag("spec USB $it", Tone.INFO) }
+                    m.tags.forEach { (text, tone) -> Tag(text, tone) }
                 }
             }
         }
@@ -135,54 +189,54 @@ fun DetailScreen(
         // gauge
         item(key = "gauge") {
             Panel {
-                Eyebrow("Link")
-                SpeedGauge(link, cap, verdict.tone)
+                Eyebrow(m.gaugeLabel)
+                SpeedGauge(m.link, m.capability, m.verdict.tone)
                 Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    GaugeLegend(verdict.tone, cap)
+                    GaugeLegend(m.verdict.tone, m.capability, isRange(m.link, m.capability))
                 }
             }
         }
 
         // verdicts
         item(key = "link-verdict") {
-            VerdictCard("Cable & port", verdict, link?.source?.text)
+            VerdictCard("Cable & port", m.verdict, m.link?.source?.text)
         }
-        if (storage != null) {
+        if (m.storage != null) {
             item(key = "storage") {
-                VerdictCard("Protocol", storage, null) {
-                    Spacer(Modifier.height(14.dp))
-                    ProtocolLadder(d)
+                VerdictCard("Protocol", m.storage, null) {
+                    val ladder = m.interfaces.filter { it.cls == 0x08 }
+                    if (ladder.isNotEmpty()) {
+                        Spacer(Modifier.height(14.dp))
+                        ProtocolLadder(ladder)
+                    }
                 }
             }
         }
 
-        // deep scan
-        if (!d.hasPermission || scanning || deep?.error != null) {
-            item(key = "deep") {
-                DeepScanCard(d.hasPermission, scanning, deep?.error, onDeepScan)
-            }
-        }
+        if (extra != null) item(key = "extra") { extra() }
 
         // facts
         item(key = "facts") {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Fact("Power ask", powerText(d, deep) ?: "—", Modifier.weight(1f))
-                Fact("Spec", d.spec?.let { "USB $it" } ?: "—", Modifier.weight(1f))
+                Fact("Power ask", m.power ?: "—", Modifier.weight(1f))
+                Fact("Spec", m.spec?.let { "USB $it" } ?: "—", Modifier.weight(1f))
             }
         }
-        deep?.serial?.let { serial ->
+        m.serial?.let { serial ->
             item(key = "serial") { Fact("Serial", serial, Modifier.fillMaxWidth()) }
         }
 
         // descriptor tree
-        item(key = "iface-head") {
-            Eyebrow("Interfaces · ${d.interfaces.size}", modifier = Modifier.padding(start = 6.dp, top = 14.dp, bottom = 2.dp))
+        if (m.interfaces.isNotEmpty()) {
+            item(key = "iface-head") {
+                Eyebrow("Interfaces · ${m.interfaces.size}", modifier = Modifier.padding(start = 6.dp, top = 14.dp, bottom = 2.dp))
+            }
+            items(m.interfaces) { InterfaceCard(it) }
         }
-        items(d.interfaces) { InterfaceCard(it) }
 
         item(key = "foot") {
             Text(
-                d.key,
+                m.footer,
                 color = Ink.Faint,
                 fontFamily = Mono,
                 fontSize = 11.sp,
@@ -207,7 +261,7 @@ private fun RoundButton(onClick: () -> Unit, content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun PillButton(text: String, color: Color, onClick: () -> Unit) {
+fun PillButton(text: String, color: Color, onClick: () -> Unit) {
     val shape = RoundedCornerShape(50)
     Text(
         text,
@@ -250,8 +304,7 @@ private fun VerdictCard(
 
 /** Each storage alt-setting as a rung: BOT (legacy) and UAS (fast lane). */
 @Composable
-private fun ProtocolLadder(d: DeviceSnapshot) {
-    val storage = d.interfaces.filter { it.cls == 0x08 }
+private fun ProtocolLadder(storage: List<InterfaceInfo>) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         storage.forEach { i ->
             val isUas = i.proto == 0x62

@@ -184,6 +184,7 @@ fun SpeedGauge(link: SpeedReading?, capability: LinkSpeed?, tone: Tone, modifier
 
     val measurer = rememberTextMeasurer()
     val accent = tone.color
+    val range = isRange(link, capability)
     val scaleStyle = TextStyle(color = Ink.Faint, fontSize = 10.sp, fontFamily = Mono)
     val valueStyle = TextStyle(color = Ink.Text, fontSize = 56.sp, fontFamily = Mono, fontWeight = FontWeight.Light, letterSpacing = (-2).sp)
     val unitStyle = TextStyle(color = accent, fontSize = 14.sp, fontFamily = Mono)
@@ -229,6 +230,15 @@ fun SpeedGauge(link: SpeedReading?, capability: LinkSpeed?, tone: Tone, modifier
         // capability ghost
         if (cap.value > 0f) {
             drawArc(Color.White.copy(alpha = 0.07f), start, total * cap.value, false, topLeft, arcSize, style = Stroke(stroke, cap = StrokeCap.Round))
+            // "Could be up to": when the link speed is a lower bound, a faint
+            // band carries the arc on to what the device can do.
+            if (range && cap.value > now.value && now.value > 0f) {
+                drawArc(
+                    accent.copy(alpha = 0.28f),
+                    start + total * now.value, total * (cap.value - now.value),
+                    false, topLeft, arcSize, style = Stroke(stroke, cap = StrokeCap.Round),
+                )
+            }
             val cp = point(cap.value, r)
             drawCircle(Ink.Bg, radius = stroke / 2 + 1.dp.toPx(), center = cp)
             drawCircle(Ink.Text.copy(alpha = 0.7f), radius = stroke / 2, center = cp, style = Stroke(1.5.dp.toPx()))
@@ -256,7 +266,12 @@ fun SpeedGauge(link: SpeedReading?, capability: LinkSpeed?, tone: Tone, modifier
         }
         val v = measurer.measure(valueText, valueStyle)
         val u = measurer.measure(speed?.unit ?: "", unitStyle)
-        val s = measurer.measure((speed?.gen ?: "speed not visible").uppercase(), subStyle)
+        val sub = when {
+            speed == null -> "speed not visible"
+            range && capability != null -> rangeGen(speed, capability)
+            else -> speed.gen
+        }
+        val s = measurer.measure(sub.uppercase(), subStyle)
         val vy = cy - v.size.height * 0.62f
         val gap = 4.dp.toPx()
         val rowW = v.size.width + gap + u.size.width
@@ -266,24 +281,53 @@ fun SpeedGauge(link: SpeedReading?, capability: LinkSpeed?, tone: Tone, modifier
     }
 }
 
+/** The link figure is a lower bound and the device could go faster. */
+fun isRange(link: SpeedReading?, capability: LinkSpeed?): Boolean =
+    link != null && link.atLeast && capability != null && capability.ordinal > link.speed.ordinal
+
+/** "USB 3.2 Gen 1 or 2" style subtitle for an uncertain link. */
+fun rangeGen(low: LinkSpeed, high: LinkSpeed): String {
+    val prefix = "USB 3.2 Gen "
+    return if (low.gen.startsWith(prefix) && high.gen.startsWith(prefix)) {
+        prefix + low.gen.removePrefix(prefix) + " or " + high.gen.removePrefix(prefix)
+    } else {
+        "${low.gen} or ${high.gen}"
+    }
+}
+
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
-fun GaugeLegend(tone: Tone, capability: LinkSpeed?) {
-    androidx.compose.foundation.layout.Row(
-        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+fun GaugeLegend(tone: Tone, capability: LinkSpeed?, range: Boolean = false) {
+    androidx.compose.foundation.layout.FlowRow(
+        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(16.dp, androidx.compose.ui.Alignment.CenterHorizontally),
+        verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp),
     ) {
-        Box(Modifier.size(8.dp).clip(CircleShape).background(tone.color))
-        Text("  Link now", color = Ink.Dim, fontSize = 12.sp)
-        Text("     ", fontSize = 12.sp)
-        Box(
-            Modifier
-                .size(8.dp)
-                .clip(CircleShape)
-                .border(1.5.dp, Ink.Text.copy(alpha = 0.7f), CircleShape),
-        )
-        Text(
-            "  Device can do" + (capability?.let { " ${it.pretty}" } ?: " ?"),
-            color = Ink.Dim,
-            fontSize = 12.sp,
-        )
+        LegendItem("Link now") { Box(Modifier.size(8.dp).clip(CircleShape).background(tone.color)) }
+        if (range) {
+            LegendItem("Could be up to") {
+                Box(
+                    Modifier
+                        .size(width = 14.dp, height = 8.dp)
+                        .clip(CircleShape)
+                        .background(tone.color.copy(alpha = 0.28f)),
+                )
+            }
+        }
+        LegendItem("Device can do" + (capability?.let { " ${it.pretty}" } ?: " ?")) {
+            Box(
+                Modifier
+                    .size(8.dp)
+                    .clip(CircleShape)
+                    .border(1.5.dp, Ink.Text.copy(alpha = 0.7f), CircleShape),
+            )
+        }
+    }
+}
+
+@Composable
+private fun LegendItem(label: String, mark: @Composable () -> Unit) {
+    androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+        mark()
+        Text("  $label", color = Ink.Dim, fontSize = 12.sp)
     }
 }
