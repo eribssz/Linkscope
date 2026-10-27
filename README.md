@@ -38,3 +38,7 @@ secrets, `KEYSTORE_BASE64` (the keystore file, base64-encoded) and `KEYSTORE_PAS
 optional `KEY_PASSWORD` if the key's password differs. The key alias is detected automatically.
 For a local signed build, put the keystore at `~/.linkscope/sideload.keystore` and set
 `LINKSCOPE_KEYSTORE_PASSWORD`; without them, Gradle builds an unsigned release APK.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
