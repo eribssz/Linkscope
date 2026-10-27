@@ -12,6 +12,9 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import android.widget.Toast
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.AnimatedContent
@@ -134,6 +137,35 @@ fun LinkscopeApp(
         scope.launch(Dispatchers.IO) { store.save(list) }
     }
 
+    fun toast(msg: String) = Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+
+    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val snapshot = history
+        scope.launch {
+            val ok = withContext(Dispatchers.IO) {
+                runCatching {
+                    context.contentResolver.openOutputStream(uri, "wt")!!.use { it.write(HistoryBackup.encode(snapshot).toByteArray()) }
+                }.isSuccess
+            }
+            toast(if (ok) "Exported ${snapshot.size} entries" else "Export failed")
+        }
+    }
+    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val entries = withContext(Dispatchers.IO) {
+                runCatching {
+                    context.contentResolver.openInputStream(uri)!!.use { HistoryBackup.decode(it.readBytes().decodeToString()) }
+                }.getOrNull()
+            }
+            if (entries == null) { toast("That isn't a Linkscope history file"); return@launch }
+            val (merged, added) = HistoryBackup.merge(history, entries)
+            persist(merged)
+            toast(if (added == 0) "Nothing new to import" else "Imported $added entries")
+        }
+    }
+
     // Forget deep-scan results for unplugged devices (their path gets reused).
     LaunchedEffect(devices) {
         val present = devices.map { it.key }.toSet()
@@ -226,6 +258,11 @@ fun LinkscopeApp(
                     onBack = { screen = null },
                     onOpen = { screen = "hist:${it.id}" },
                     onClear = { persist(emptyList()) },
+                    onExport = {
+                        val day = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
+                        exportLauncher.launch("linkscope-history-$day.json")
+                    },
+                    onImport = { importLauncher.launch(arrayOf("application/json", "text/plain", "application/octet-stream")) },
                 )
                 target.startsWith("hist:") -> {
                     val e = history.firstOrNull { it.id.toString() == target.removePrefix("hist:") }

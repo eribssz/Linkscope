@@ -147,6 +147,34 @@ class HistoryStore(context: Context) {
     }
 }
 
+/** Backup file: {"app":"linkscope","format":1,"exported":ms,"entries":[...]}. */
+object HistoryBackup {
+    fun encode(entries: List<HistoryEntry>): String = JSONObject().apply {
+        put("app", "linkscope")
+        put("format", 1)
+        put("exported", System.currentTimeMillis())
+        put("entries", JSONArray().apply { entries.forEach { put(it.toJson()) } })
+    }.toString(2)
+
+    /** Accepts a backup file or a bare history.json array. Null if it isn't one. */
+    fun decode(text: String): List<HistoryEntry>? = runCatching {
+        val t = text.trim()
+        val arr = if (t.startsWith("[")) JSONArray(t) else {
+            val o = JSONObject(t)
+            if (o.optString("app") != "linkscope") return null
+            o.getJSONArray("entries")
+        }
+        (0 until arr.length()).mapNotNull { HistoryEntry.fromJson(arr.getJSONObject(it)) }
+    }.getOrNull()
+
+    /** Imported entries are added; ones already present (same id) are kept as they are. */
+    fun merge(current: List<HistoryEntry>, imported: List<HistoryEntry>): Pair<List<HistoryEntry>, Int> {
+        val have = current.map { it.id }.toHashSet()
+        val added = imported.filter { have.add(it.id) }
+        return (current + added).sortedByDescending { it.lastSeen } to added.size
+    }
+}
+
 fun identityOf(s: DeviceSnapshot): String = "${s.ids}|${s.product}"
 
 /** Build (or refresh) the history entry for a device as it looks right now. */

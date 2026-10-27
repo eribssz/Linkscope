@@ -84,6 +84,23 @@ fun ConfirmPill(label: String, armedLabel: String, color: Color, onConfirm: () -
 }
 
 @Composable
+fun Pill(label: String, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(50)
+    Text(
+        label,
+        color = Ink.Dim,
+        fontSize = 13.sp,
+        fontWeight = FontWeight.Medium,
+        modifier = Modifier
+            .clip(shape)
+            .background(Ink.Surface)
+            .border(1.dp, Ink.Line, shape)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+    )
+}
+
+@Composable
 fun HistoryRow(e: HistoryEntry, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val shape = RoundedCornerShape(18.dp)
     Row(
@@ -174,6 +191,8 @@ fun HistoryScreen(
     onBack: () -> Unit,
     onOpen: (HistoryEntry) -> Unit,
     onClear: () -> Unit,
+    onExport: () -> Unit,
+    onImport: () -> Unit,
 ) {
     Column(
         Modifier
@@ -187,7 +206,13 @@ fun HistoryScreen(
         ) {
             BackButton(onBack)
             Spacer(Modifier.weight(1f))
-            if (history.isNotEmpty()) ConfirmPill("Clear all", "Tap to clear", Ink.Dim, onClear)
+            Pill("Import", onImport)
+            if (history.isNotEmpty()) {
+                Spacer(Modifier.width(8.dp))
+                Pill("Export", onExport)
+                Spacer(Modifier.width(8.dp))
+                ConfirmPill("Clear all", "Tap to clear", Ink.Dim, onClear)
+            }
         }
         Column(Modifier.padding(start = 22.dp, end = 22.dp, top = 18.dp, bottom = 8.dp)) {
             Eyebrow("Linkscope · past results")
