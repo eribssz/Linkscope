@@ -33,5 +33,7 @@ on Android can read a cable's e-marker chip.
 Push this folder to a GitHub repository. The included workflow builds a signed APK and
 publishes it under **Releases**. Or open it in Android Studio and run **Build → Build APK**.
 
-The signing key in `app/sideload.keystore` is fixed on purpose so new builds install as
-updates. It's for personal sideloading only — don't use it to publish.
+The signing key is not in the repository. The workflow reads it from two repository
+secrets, `KEYSTORE_BASE64` (the keystore file, base64-encoded) and `KEYSTORE_PASSWORD`.
+For a local signed build, put the keystore at `~/.linkscope/sideload.keystore` and set
+`LINKSCOPE_KEYSTORE_PASSWORD`; without them, Gradle builds an unsigned release APK.

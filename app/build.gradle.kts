@@ -16,13 +16,18 @@ android {
         versionName = "1.6"
     }
 
-    // A fixed key so future builds install as updates instead of conflicting.
+    // Signing key lives outside the repo. CI writes it from the KEYSTORE_BASE64
+    // secret; locally, put it at ~/.linkscope/sideload.keystore or set the env vars.
+    val ksFile = System.getenv("LINKSCOPE_KEYSTORE")?.let { file(it) }
+        ?: file("${System.getProperty("user.home")}/.linkscope/sideload.keystore")
+    val ksPass = System.getenv("LINKSCOPE_KEYSTORE_PASSWORD")
+    val hasKey = ksFile.exists() && ksPass != null
     signingConfigs {
-        create("sideload") {
-            storeFile = file("sideload.keystore")
-            storePassword = "linkscope"
-            keyAlias = "linkscope"
-            keyPassword = "linkscope"
+        if (hasKey) create("sideload") {
+            storeFile = ksFile
+            storePassword = ksPass
+            keyAlias = System.getenv("LINKSCOPE_KEY_ALIAS") ?: "linkscope"
+            keyPassword = ksPass
         }
     }
 
@@ -31,10 +36,10 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
-            signingConfig = signingConfigs.getByName("sideload")
+            if (hasKey) signingConfig = signingConfigs.getByName("sideload")
         }
         debug {
-            signingConfig = signingConfigs.getByName("sideload")
+            if (hasKey) signingConfig = signingConfigs.getByName("sideload")
         }
     }
 
