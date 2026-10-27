@@ -27,7 +27,7 @@ android {
             storeFile = ksFile
             storePassword = ksPass
             keyAlias = System.getenv("LINKSCOPE_KEY_ALIAS") ?: "linkscope"
-            keyPassword = ksPass
+            keyPassword = System.getenv("LINKSCOPE_KEY_PASSWORD")?.ifEmpty { null } ?: ksPass
         }
     }
 

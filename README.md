@@ -34,6 +34,7 @@ Push this folder to a GitHub repository. The included workflow builds a signed A
 publishes it under **Releases**. Or open it in Android Studio and run **Build → Build APK**.
 
 The signing key is not in the repository. The workflow reads it from two repository
-secrets, `KEYSTORE_BASE64` (the keystore file, base64-encoded) and `KEYSTORE_PASSWORD`.
+secrets, `KEYSTORE_BASE64` (the keystore file, base64-encoded) and `KEYSTORE_PASSWORD`, plus an
+optional `KEY_PASSWORD` if the key's password differs. The key alias is detected automatically.
 For a local signed build, put the keystore at `~/.linkscope/sideload.keystore` and set
 `LINKSCOPE_KEYSTORE_PASSWORD`; without them, Gradle builds an unsigned release APK.
