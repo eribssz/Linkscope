@@ -59,6 +59,11 @@ android {
     }
 }
 
+// Put the version in the APK file name, e.g. Linkscope-v1.7-release.apk.
+base {
+    archivesName.set("Linkscope-v${android.defaultConfig.versionName}")
+}
+
 dependencies {
     val composeBom = platform("androidx.compose:compose-bom:2024.12.01")
     implementation(composeBom)

@@ -40,20 +40,22 @@ jobs:
           export LINKSCOPE_KEY_ALIAS="$ALIAS"
           chmod +x gradlew
           ./gradlew assembleRelease --stacktrace
+          VERSION=$(grep -oP 'versionName\s*=\s*"\K[^"]+' app/build.gradle.kts)
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           mkdir -p out
-          cp app/build/outputs/apk/release/app-release.apk out/Linkscope.apk
+          cp app/build/outputs/apk/release/*-release.apk "out/Linkscope-v$VERSION.apk"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Linkscope-apk
-          path: out/Linkscope.apk
+          name: Linkscope-v${{ env.VERSION }}
+          path: out/Linkscope-v${{ env.VERSION }}.apk
 
       # A GitHub Release gives a plain download link that's easy to open on a phone.
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: build-${{ github.run_number }}
-          name: Linkscope build ${{ github.run_number }}
-          files: out/Linkscope.apk
+          tag_name: v${{ env.VERSION }}-build-${{ github.run_number }}
+          name: Linkscope v${{ env.VERSION }} (build ${{ github.run_number }})
+          files: out/Linkscope-v${{ env.VERSION }}.apk
           make_latest: true
